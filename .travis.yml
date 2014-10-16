@@ -24,7 +24,7 @@ before_install:
   - sudo python setup.py install
   - cd ..
 
-script: "./autogen.sh; ./configure; make distclean; make"
+script: "./autogen.sh; ./configure; make clean; make"
 
 env:
   global:
@@ -38,6 +38,6 @@ addons:
       name: "tklengyel/drakvuf"
       description: "Build submitted via Travis CI"
     notification_email: tamas.k.lengyel@gmail.com
-    build_command_prepend: "./autogen.sh; ./configure; make distclean"
+    build_command_prepend: "./autogen.sh; ./configure; make clean"
     build_command:   "make"
     branch_pattern: staging
