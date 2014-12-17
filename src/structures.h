@@ -107,7 +107,7 @@
 
 /******************************************/
 
-#define LIBXL_API_VERSION 0x040300
+#define LIBXL_API_VERSION 0x040500
 #define INVALID_DOMID ~(uint32_t)0
 
 #include <config.h>
@@ -133,11 +133,6 @@ typedef struct xen_interface {
   libxl_ctx *xl_ctx;
   xentoollog_logger *xl_logger;
 } xen_interface_t;
-
-typedef struct xen_domconfig_raw {
-  uint8_t *config_data;
-  int config_length;
-} xen_domconfig_raw_t;
 
 typedef struct log_interface {
 

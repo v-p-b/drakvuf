@@ -128,9 +128,9 @@ static void close_handler(int sig) {
 }
 
 static void make_clone(xen_interface_t *xen, const char *dom, uint32_t *cloneID,
-        uint16_t vlan, char **clone_name) {
-    char *command = g_malloc0(snprintf(NULL, 0, "%s %s %u", CLONE, dom, vlan) + 1);
-    sprintf(command, "%s %s %u", CLONE, dom, vlan);
+        char *config, uint16_t vlan, char **clone_name) {
+    char *command = g_malloc0(snprintf(NULL, 0, "%s %s %s %u", CLONE, dom, config, vlan) + 1);
+    sprintf(command, "%s %s %s %u", CLONE, dom, config, vlan);
     printf("** RUNNING COMMAND: %s\n", command);
     char *output = NULL;
     g_spawn_command_line_sync(command, &output, NULL, NULL, NULL);
@@ -200,7 +200,7 @@ int main(int argc, char** argv) {
                "  %s -d <rekall profile> <domid> [injection pid] [injection executable path]\n",
                argv[0]);
         printf("To create clone domain:"
-               " %s -c <rekall profile> <origin> <vlan> [injection pid] [injection executable path]\n",
+               " %s -c <rekall profile> <origin domid> <origin xl domconfig> <vlan> [injection pid] [injection executable path]\n",
                argv[0]);
         return 1;
     }
@@ -217,6 +217,9 @@ int main(int argc, char** argv) {
     pooltag_build_tree(&_honeymon);
     //vmi_build_guid_tree(&honeymon);
 
+    vmi_pid_t pid = -1;
+    char *app = NULL;
+
     if (!strcmp(argv[1], "-c")) {
 
         get_dom_info(_honeymon.xen, argv[3], &_origin.domID, &_origin.name);
@@ -226,8 +229,10 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        _clone.vlan = atoi(argv[4]);
-        make_clone(_honeymon.xen, _origin.name, &_clone.domID, _clone.vlan, &_clone.clone_name);
+        _origin.config_path = argv[4];
+        _clone.vlan = atoi(argv[5]);
+        make_clone(_honeymon.xen, _origin.name, &_clone.domID,
+                   _clone.config_path, _clone.vlan, &_clone.clone_name);
 
         memshare(&_clone);
 
@@ -236,11 +241,18 @@ int main(int argc, char** argv) {
 
         printf("Clone created with name %s domID %u\n", _clone.clone_name,
                 _clone.domID);
+
+        pid = atoi(argv[6]);
+        app = argv[7];
+
     }
 
     if (!strcmp(argv[1], "-d")) {
         _origin.domID = INVALID_DOMID;
         get_dom_info(_honeymon.xen, argv[3], &_clone.domID, &_clone.clone_name);
+
+        pid = atoi(argv[4]);
+        app = argv[5];
     }
 
     _origin.rekall_profile = argv[2];
@@ -252,13 +264,6 @@ int main(int argc, char** argv) {
 
     if (!_clone.vmi) {
         goto exit;
-    }
-
-    vmi_pid_t pid = -1;
-    char *app = NULL;
-    if (argc == 6) {
-        pid = atoi(argv[4]);
-        app = argv[5];
     }
 
     /* for a clean exit */

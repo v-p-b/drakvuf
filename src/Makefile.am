@@ -102,7 +102,7 @@
  #                                                                         #
  #*************************************************************************# 
 
-bin_PROGRAMS = drakvuf xen_domconfig injector
+bin_PROGRAMS = drakvuf injector
 
 drakvuf_SOURCES = main.c \
                       vmi.c vmi-poolmon.c \

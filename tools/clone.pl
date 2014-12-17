@@ -120,14 +120,12 @@ use warnings;
 ## Settings
 #
 # The LVM volume group
-our $lvm_vg = "t1vg";
-# Path to DRAKVUF xen_domconfig
-our $xen_domconfig = "../src/xen_domconfig";
+our $lvm_vg = "l1vg";
 # Clone network bridge name
-our $clone_bridge = "xenbr1";
+our $clone_bridge = "xenbr0";
 # Vif script to pass to clone Xen config.
 # The backend specifies the name of the openvswitch domain.
-our $vif_script = "script=vif-openvswitch,backend=openvswitch";
+our $vif_script = "script=vif-bridge,backend=0";
 
 ############################################################
 
@@ -145,7 +143,8 @@ $mkfifo =~ s/\015?\012?$//;
 
 sub clone {
     my $origin = $_[0];
-    my $vlan = $_[1];
+    my $config = $_[1];
+    my $vlan = $_[2];
 
     my $clone = "$origin-$vlan-clone";
 
@@ -159,24 +158,26 @@ sub clone {
         `$xl destroy $clone`;
     }
 
-    my $domconfig = `$xen_domconfig $origin`;
-
     open(my $fh, '>', "/tmp/$clone.config") or die "Could not open file!";
 
-    while($domconfig =~ /([^\n]+)\n?/g){
+    open(my $configfh, '<:encoding(UTF-8)', $config)
+    or die "Could not open file '$config' $!";
+     
+    while (my $row = <$configfh>) {
+        chomp $row;
 
-        if(index($1, "name") != -1) {
+        if(index($row, "name") != -1) {
             print $fh "name = \"$clone\"\n";
             next;
         }
 
-        if(index($1, "vif") != -1) {
-            my @values = split(',', $1);
+        if(index($row, "vif") != -1) {
+            my @values = split(',', $row);
             my $value;
             my $count = 0;
             foreach $value (@values) {
                 if(index($value, "bridge")!=-1) {
-                    print $fh "bridge = $clone_bridge.$vlan, $vif_script";
+                    print $fh "bridge = $clone_bridge, $vif_script";
                 } else {
                     if(index($value, "script")==-1 && index($value, "backend")==-1) {
                         print $fh "$value";
@@ -192,8 +193,8 @@ sub clone {
             next;
         }
 
-        if(index($1, "disk") != -1) {
-            my $disk = $1;
+        if(index($row, "disk") != -1) {
+            my $disk = $row;
             my $pos = index($disk, $origin);
             while ( $pos > -1 ) {
                 substr( $disk, $pos, length( $origin ), $clone );
@@ -203,12 +204,13 @@ sub clone {
             next;
         }
 
-        print $fh "$1\n";
+        print $fh "$row\n";
     }
 
     # TODO: evaluate qemu stubdomain usability
     #print $fh "device_model_stubdomain_override = 1\n";
     close $fh;
+    close $configfh;
 
     `$xl pause $origin 2>&1`;
 
@@ -218,13 +220,13 @@ sub clone {
         `$lvremove -f /dev/$lvm_vg/$clone 2>&1`;
     }
 
-    `$lvcreate -s -n $clone -L20G /dev/$lvm_vg/$origin 2>&1`;
+    `$lvcreate -s -n $clone -L10G /dev/$lvm_vg/$origin 2>&1`;
     `$mkfifo /tmp/drakvuf_pipe 2>&1`;
-    `$xl save -c $origin /tmp/drakvuf_pipe 2>&1 | $xl restore -p -e /tmp/$clone.config /tmp/drakvuf_pipe 2>&1`;
+    `$xl save -p $origin /tmp/drakvuf_pipe 2>&1 | $xl restore -p -e /tmp/$clone.config /tmp/drakvuf_pipe 2>&1`;
     my $cloneID = `$xl domid $clone`;
     print "$cloneID";
 }
 
 ############################################################
 
-clone($ARGV[0], $ARGV[1]);
+clone($ARGV[0], $ARGV[1], $ARGV[2]);
