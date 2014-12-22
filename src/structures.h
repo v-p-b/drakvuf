@@ -312,12 +312,24 @@ typedef struct clone {
   GHashTable *page_lookup; // key: page #
   GHashTable *pa_lookup; // key: PA of trap
   GHashTable *pool_lookup; // key: PA of trap
+  GHashTable *memfree_lookup;
   GHashTable *file_watch;
   GSList *trap_reset;
 
   GHashTable *files_accessed;
 
 } honeymon_clone_t;
+
+//sID = 4
+#define MEMFREE_LOOKUP 4
+struct memfree_lookup {
+  honeymon_clone_t *clone;
+  addr_t base;
+  addr_t size;
+  addr_t type;
+  reg_t cr3;
+  uint8_t backup;
+}__attribute__ ((packed));
 
 //sID = 3
 #define FILE_WATCH 3
@@ -360,6 +372,7 @@ struct memevent {
       struct symbolwrap symbol;
       struct pool_lookup pool;
       struct file_watch file;
+      struct memfree_lookup memfree;
   };
 }__attribute__ ((packed));
 

@@ -109,21 +109,22 @@ drakvuf_SOURCES = main.c \
                       win-exports.c win-handles.c win-symbols.c \
                       pooltag.c injector.c \
                       file_extractor.c xen_helper.c \
-                      xmlrpc_client.c
+                      xmlrpc_client.c memtracker.c
 
 drakvuf_h = structures.h \
                       vmi.h vmi-poolmon.h \
                       win-exports.h win-handles.h \
                       pooltag.h injector.h \
                       file_extractor.h xen_helper.h \
-                      xmlrpc_client.h
+                      xmlrpc_client.h memtracker.h
 
-drakvuf_SOURCES += $(vmi_honeymon_h)
+drakvuf_SOURCES += $(drakvuf_h)
 
 xen_domconfig_SOURCES = xen_helper.c xen_domconfig.c
 injector_SOURCES = injector_standalone.c injector.c xen_helper.c \
                    win-exports.c vmi.c file_extractor.c \
-                   win-symbols.c vmi-poolmon.c win-handles.c
+                   win-symbols.c vmi-poolmon.c win-handles.c \
+                   memtracker.c
 
 AM_CFLAGS = $(CFLAGS)
 AM_CFLAGS += $(VMI_CFLAGS)
@@ -149,4 +150,3 @@ drakvuf_LDADD = $(XMLRPC_CLIENT_LIBS)
 if HARDENING
 drakvuf_LDADD += $(HARDEN_LDFLAGS)
 endif
-

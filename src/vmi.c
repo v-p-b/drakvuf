@@ -123,6 +123,7 @@
 #include "vmi.h"
 #include "vmi-poolmon.h"
 #include "file_extractor.h"
+#include "memtracker.h"
 #include "xen_helper.h"
 #include "rdtsc.h"
 
@@ -323,6 +324,11 @@ void int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
         }
         //}
 
+        if (!strcmp(s->symbol->name, "NtFreeVirtualMemory")
+                || !strcmp(s->symbol->name, "ZwFreeVirtualMemory")) {
+            track_free_memory(vmi, event, cr3);
+        }
+
         // remove trap
         vmi_write_8_pa(vmi, pa, &s->backup);
         event->interrupt_event.reinject = 0;
@@ -332,14 +338,22 @@ void int3_cb(vmi_instance_t vmi, vmi_event_t *event) {
         if (pool_rets) {
             pool_alloc_return(vmi, event, pa, cr3, ts, pool_rets);
             event->interrupt_event.reinject = 0;
-        } else {
-            printf(
-                    "%s Unknown Int3 event: CR3: 0x%"PRIx64" PA=0x%"PRIx64" RIP=0x%"PRIx64"\n",
-                    ts, cr3, pa, event->interrupt_event.gla);
-            event->interrupt_event.reinject = 1;
+            goto done;
         }
+
+        GHashTable *memfree_rets = g_hash_table_lookup(clone->memfree_lookup, &pa);
+        if (memfree_rets) {
+            memfree_return(vmi, event, pa, cr3, ts, memfree_rets);
+            event->interrupt_event.reinject = 0;
+            goto done;
+        }
+
+        printf("%s Unknown Int3 event: CR3: 0x%"PRIx64" PA=0x%"PRIx64" RIP=0x%"PRIx64"\n",
+               ts, cr3, pa, event->interrupt_event.gla);
+                event->interrupt_event.reinject = 1;
     }
 
+done:
     g_free(ts);
     //vmi_set_vcpureg(vmi, tsc+(rdtsc()-deltatsc), TSC, event->vcpu_id);
 }
@@ -364,14 +378,17 @@ void inject_traps_pe(honeymon_clone_t *clone, addr_t vaddr, uint32_t pid, struct
 
         //Kernel
         if (
-                strncmp(symbol->name, "ExAllocatePoolWithTag", 21)
-                && strcmp(symbol->name, "ExAllocatePoolWithQuotaTag")
+                //strncmp(symbol->name, "ExAllocatePoolWithTag", 21)
+                //&& strcmp(symbol->name, "ExAllocatePoolWithQuotaTag")
                 //&& strncmp(symbol->name, "ObCreateObject", 14)
                 //&& strcmp(symbol->name, "ExFreePoolWithTag")
-                && strcmp(symbol->name, "NtSetInformationFile")
-                && strcmp(symbol->name, "ZwSetInformationFile")
-                &&
-                strncmp(symbol->name, "Nt", 2)
+                //&& strcmp(symbol->name, "NtSetInformationFile")
+                //&& strcmp(symbol->name, "ZwSetInformationFile")
+                //&&
+                strcmp(symbol->name, "NtFreeVirtualMemory")
+                && strcmp(symbol->name, "ZwFreeVirtualMemory")
+                //&&
+                //strncmp(symbol->name, "Nt", 2)
                 //&& strncmp(symbol->name, "Zw", 2)
             ) continue;
 
@@ -543,7 +560,9 @@ void inject_traps(honeymon_clone_t *clone) {
     do {
 
         vmi_pid_t pid;
+        addr_t dtb = 0;
         vmi_read_32_va(vmi, current_process + offsets[EPROCESS_PID], 0, (uint32_t*)&pid);
+        vmi_read_addr_va(vmi, current_process + offsets[EPROCESS_PDBASE], 0, &dtb);
 
         char *procname = vmi_read_str_va(vmi, current_process + offsets[EPROCESS_PNAME], 0);
 
@@ -551,7 +570,7 @@ void inject_traps(honeymon_clone_t *clone) {
             goto exit;
         }
 
-        printf("Found process: [%5d] %s\n", pid, procname);
+        printf("Found process: [%5d] 0x%lx %s\n", pid, dtb, procname);
         free(procname);
 
         addr_t imagebase = 0, peb = 0, ldr = 0, modlist = 0;
@@ -665,6 +684,8 @@ void clone_vmi_init(honeymon_clone_t *clone) {
             free, NULL);
     clone->file_watch = g_hash_table_new_full(g_int64_hash, g_int64_equal, free,
             NULL);
+    clone->memfree_lookup = g_hash_table_new_full(g_int64_hash, g_int64_equal, free,
+            NULL);
 
     // Files accessed
     clone->files_accessed = g_hash_table_new_full(g_str_hash, g_str_equal, free,
@@ -762,6 +783,7 @@ void close_vmi_clone(honeymon_clone_t *clone) {
     g_hash_table_destroy(clone->pool_lookup);
     g_hash_table_destroy(clone->page_lookup);
     g_hash_table_destroy(clone->file_watch);
+    g_hash_table_destroy(clone->memfree_lookup);
     g_hash_table_destroy(clone->files_accessed);
 
     if (clone->timer) {
