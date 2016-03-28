@@ -102,47 +102,78 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAKVUF_PLUGINS_H
-#define DRAKVUF_PLUGINS_H
+#include <glib.h>
+#include <libvmi/libvmi.h>
+#include "../plugins.h"
+#include "private.h"
+#include "proctracer.h"
 
-#include <config.h>
-#include <stdlib.h>
-#include <libdrakvuf/libdrakvuf.h>
+static event_response_t trace_cb(drakvuf_t drakvuf, drakvuf_trap_info_t *info){
+    vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
 
-/***************************************************************************/
+    printf("[PROCTRACER] Trace point hit: 0x%lx\n",info->regs->rip);
 
-/* Plugin-specific configuration input */
-struct filedelete_config {
-    const char *rekall_profile;
-    const char *dump_folder;
-};
+    drakvuf_release_vmi(drakvuf);
+    return 0;
+}
 
-/***************************************************************************/
+static event_response_t cb(drakvuf_t drakvuf, drakvuf_trap_info_t *info) {
+    proctracer *p = (proctracer*)info->trap->data;
+    vmi_instance_t vmi = drakvuf_lock_and_get_vmi(drakvuf);
+    //page_mode_t pm = vmi_get_page_mode(vmi);
 
-typedef enum drakvuf_plugin {
-    PLUGIN_SYSCALLS,
-    PLUGIN_POOLMON,
-    PLUGIN_FILETRACER,
-    PLUGIN_FILEDELETE,
-    PLUGIN_OBJMON,
-    PLUGIN_EXMON,
-    PLUGIN_PROCTRACER,
-    __DRAKVUF_PLUGIN_LIST_MAX
-} drakvuf_plugin_t;
+    access_context_t ctx;
+    ctx.translate_mechanism = VMI_TM_PROCESS_DTB;
+    ctx.dtb = info->regs->cr3;
 
-class plugin {};
-class drakvuf_plugins
-{
-    private:
-        drakvuf_t drakvuf;
-        plugin* plugins[__DRAKVUF_PLUGIN_LIST_MAX] = { [0 ... __DRAKVUF_PLUGIN_LIST_MAX-1] = NULL };
+    addr_t process = drakvuf_get_current_process(drakvuf, info->vcpu, info->regs);
+    char *proc_name = drakvuf_get_process_name(drakvuf, process); 
+    printf("[PROCTRACER] CR3: %lx NAME: %s\n", info->regs->cr3, proc_name);
+    if (strcmp(proc_name,"CrashMe.exe")){
+        free(proc_name);
+        drakvuf_release_vmi(drakvuf);
+        return 0;
+    }
+    addr_t base_pa = vmi_pagetable_lookup(vmi, info->regs->cr3, 0x42ff8f);
+    printf("[PROCTRACER] Base PA: %lx\n", base_pa);
+    if (base_pa){
+        printf("[PROCTRACER] Adding dynamic trap\n");
+        drakvuf_trap_t *maintrap = (drakvuf_trap_t*)g_malloc0(sizeof(drakvuf_trap_t));
 
-    public:
-        drakvuf_plugins(drakvuf_t drakvuf);
-        ~drakvuf_plugins();
-        bool start(drakvuf_plugin_t plugin, const void* config);
-};
+        maintrap->lookup_type = LOOKUP_NONE;
+        maintrap->addr_type = ADDR_PA;
+        maintrap->type = BREAKPOINT;
+        maintrap->name = "CrashMeMainTrap";
+        maintrap->cb = trace_cb;
+        maintrap->u2.addr = base_pa;
+        maintrap->data = p;
 
-/***************************************************************************/
+        drakvuf_add_trap(drakvuf, maintrap);
+    }else{
+        printf("[PROCTRACER] Couldn't find physical address!\n");    
+    }
+    free(proc_name);
+    drakvuf_release_vmi(drakvuf);
+    return 0;
+}
 
-#endif
+proctracer::proctracer(drakvuf_t drakvuf, const void *config) {
+    const char *rekall_profile =(const char *)config;
+    printf("[PROCTRACER] Starting...\n");
+    if(VMI_FAILURE == drakvuf_get_function_rva(rekall_profile, "PsGetCurrentThreadTeb", &this->trap.u2.rva))
+        return;
+
+    this->trap.cb = cb;
+    this->trap.data = (void*)this;
+    this->format = drakvuf_get_output_format(drakvuf);
+    //this->offsets = (size_t*)g_malloc0(__OFFSET_MAX*sizeof(size_t));
+    this->offsets = NULL;
+
+    if ( !drakvuf_add_trap(drakvuf,&this->trap) )
+        throw -1;
+    printf("[PROCTRACER] Started successfully\n");
+}
+
+proctracer::~proctracer() {
+    free(this->offsets);
+}

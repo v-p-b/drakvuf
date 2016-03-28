@@ -102,47 +102,27 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAKVUF_PLUGINS_H
-#define DRAKVUF_PLUGINS_H
+#ifndef PROCTRACER_H
+#define PROCTRACER_H
 
-#include <config.h>
-#include <stdlib.h>
-#include <libdrakvuf/libdrakvuf.h>
+#include "plugins/plugins.h"
 
-/***************************************************************************/
-
-/* Plugin-specific configuration input */
-struct filedelete_config {
-    const char *rekall_profile;
-    const char *dump_folder;
-};
-
-/***************************************************************************/
-
-typedef enum drakvuf_plugin {
-    PLUGIN_SYSCALLS,
-    PLUGIN_POOLMON,
-    PLUGIN_FILETRACER,
-    PLUGIN_FILEDELETE,
-    PLUGIN_OBJMON,
-    PLUGIN_EXMON,
-    PLUGIN_PROCTRACER,
-    __DRAKVUF_PLUGIN_LIST_MAX
-} drakvuf_plugin_t;
-
-class plugin {};
-class drakvuf_plugins
-{
-    private:
-        drakvuf_t drakvuf;
-        plugin* plugins[__DRAKVUF_PLUGIN_LIST_MAX] = { [0 ... __DRAKVUF_PLUGIN_LIST_MAX-1] = NULL };
-
+class proctracer: public plugin {
     public:
-        drakvuf_plugins(drakvuf_t drakvuf);
-        ~drakvuf_plugins();
-        bool start(drakvuf_plugin_t plugin, const void* config);
-};
+        drakvuf_trap_t trap = {
+            .lookup_type = LOOKUP_PID,
+            .u.pid = 4,
+            .addr_type = ADDR_RVA,
+            .name = "PsGetCurrentThreadTeb",
+            .module = "ntoskrnl.exe",
+            .type = BREAKPOINT
+        };
+        output_format_t format;
+        page_mode_t pm;
+        size_t *offsets;
 
-/***************************************************************************/
+        proctracer(drakvuf_t drakvuf, const void *config);
+        ~proctracer();
+};
 
 #endif

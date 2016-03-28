@@ -102,47 +102,7 @@
  *                                                                         *
  ***************************************************************************/
 
-#ifndef DRAKVUF_PLUGINS_H
-#define DRAKVUF_PLUGINS_H
-
-#include <config.h>
-#include <stdlib.h>
-#include <libdrakvuf/libdrakvuf.h>
-
-/***************************************************************************/
-
-/* Plugin-specific configuration input */
-struct filedelete_config {
-    const char *rekall_profile;
-    const char *dump_folder;
-};
-
-/***************************************************************************/
-
-typedef enum drakvuf_plugin {
-    PLUGIN_SYSCALLS,
-    PLUGIN_POOLMON,
-    PLUGIN_FILETRACER,
-    PLUGIN_FILEDELETE,
-    PLUGIN_OBJMON,
-    PLUGIN_EXMON,
-    PLUGIN_PROCTRACER,
-    __DRAKVUF_PLUGIN_LIST_MAX
-} drakvuf_plugin_t;
-
-class plugin {};
-class drakvuf_plugins
-{
-    private:
-        drakvuf_t drakvuf;
-        plugin* plugins[__DRAKVUF_PLUGIN_LIST_MAX] = { [0 ... __DRAKVUF_PLUGIN_LIST_MAX-1] = NULL };
-
-    public:
-        drakvuf_plugins(drakvuf_t drakvuf);
-        ~drakvuf_plugins();
-        bool start(drakvuf_plugin_t plugin, const void* config);
-};
-
-/***************************************************************************/
+#ifndef PROCTRACER_PRIVATE_H
+#define PROCTRACER_PRIVATE_H
 
 #endif
