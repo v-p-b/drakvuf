@@ -150,12 +150,6 @@ status_t drakvuf_get_struct_member_rva(const char *rekall_profile,
  * DRAKVUF functions
  */
 
-typedef enum {
-    OUTPUT_DEFAULT,
-    OUTPUT_CSV,
-    __OUTPUT_MAX
-} output_format_t;
-
 typedef enum lookup_type {
     LOOKUP_NONE,
     LOOKUP_DTB,
@@ -223,6 +217,28 @@ struct drakvuf_trap {
     void *data;
 };
 
+
+////////////////////////////////////////////////////////////////////////////
+
+// IMHO these definitions must be placed within another file, named
+// libdrakvuf-windows.h or something similar
+
+// For get_previous_mode...
+typedef enum privilege_mode {
+    KERNEL_MODE,
+    USER_MODE,
+    MAXIMUM_MODE
+} privilege_mode_t ;
+
+// Confirmed only on Win7 SP1...
+typedef enum object_manager_object {
+    OBJ_MANAGER_PROCESS_OBJECT = 7,
+    OBJ_MANAGER_THREAD_OBJECT  = 8
+} object_manager_object_t ;
+
+////////////////////////////////////////////////////////////////////////////
+
+
 bool drakvuf_init (drakvuf_t *drakvuf,
                    const char *domain,
                    const char *rekall_profile);
@@ -248,9 +264,6 @@ void drakvuf_resume (drakvuf_t drakvuf);
 vmi_instance_t drakvuf_lock_and_get_vmi(drakvuf_t drakvuf);
 void drakvuf_release_vmi(drakvuf_t drakvuf);
 
-output_format_t drakvuf_get_output_format(drakvuf_t drakvuf);
-void drakvuf_set_output_format(drakvuf_t drakvuf,
-                               output_format_t output);
 addr_t drakvuf_get_obj_by_handle(drakvuf_t drakvuf,
                                  addr_t process,
                                  uint64_t handle);
@@ -273,6 +286,38 @@ char *drakvuf_get_process_name(drakvuf_t drakvuf,
 char *drakvuf_get_current_process_name(drakvuf_t drakvuf,
                                        uint64_t vcpu_id,
                                        x86_registers_t *regs);
+
+
+bool drakvuf_get_current_thread_id( drakvuf_t drakvuf, 
+                                    uint64_t vcpu_id, 
+                                    x86_registers_t *regs,
+                                    uint32_t *thread_id );
+
+// Microsoft PreviousMode KTHREAD explanation:
+// https://msdn.microsoft.com/en-us/library/windows/hardware/ff559860(v=vs.85).aspx
+bool drakvuf_get_current_thread_previous_mode( drakvuf_t drakvuf, 
+                                               drakvuf_trap_info_t *info, 
+                                               privilege_mode_t *previous_mode );
+
+bool drakvuf_get_thread_previous_mode( drakvuf_t drakvuf, 
+                                       addr_t kthread, 
+                                       privilege_mode_t *previous_mode );
+
+bool drakvuf_is_ethread( drakvuf_t drakvuf, 
+                         drakvuf_trap_info_t *info, 
+                         addr_t ethread_addr );
+
+bool drakvuf_is_eprocess( drakvuf_t drakvuf, 
+                          drakvuf_trap_info_t *info, 
+                          addr_t eprocess_addr );
+
+// ObReferenceObjectByHandle
+bool drakvuf_obj_ref_by_handle( drakvuf_t drakvuf, 
+                                drakvuf_trap_info_t *info, 
+                                addr_t current_eprocess,
+                                addr_t handle, 
+                                object_manager_object_t obj_type_arg, 
+                                addr_t *obj_body_addr );
 
 #pragma GCC visibility pop
 
