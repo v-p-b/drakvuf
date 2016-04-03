@@ -111,7 +111,6 @@ extern "C" {
 
 #pragma GCC visibility push(default)
 
-#include <glib.h>
 #include <libvmi/libvmi.h>
 #include <libvmi/events.h>
 
@@ -245,13 +244,9 @@ bool drakvuf_init (drakvuf_t *drakvuf,
 void drakvuf_close (drakvuf_t drakvuf);
 bool drakvuf_add_trap(drakvuf_t drakvuf,
                       drakvuf_trap_t *trap);
-bool drakvuf_add_traps(drakvuf_t drakvuf,
-                       GSList *traps);
 void drakvuf_remove_trap (drakvuf_t drakvuf,
                           drakvuf_trap_t *trap,
                           void(*free_routine)(drakvuf_trap_t *trap));
-void drakvuf_remove_traps(drakvuf_t drakvuf,
-                          GSList *traps);
 void drakvuf_loop (drakvuf_t drakvuf);
 void drakvuf_interrupt (drakvuf_t drakvuf,
                         int sig);
@@ -275,49 +270,57 @@ addr_t drakvuf_get_obj_by_handle(drakvuf_t drakvuf,
  */
 addr_t drakvuf_get_current_process(drakvuf_t drakvuf,
                                    uint64_t vcpu_id,
-                                   x86_registers_t *regs);
+                                   const x86_registers_t *regs);
 addr_t drakvuf_get_current_thread(drakvuf_t drakvuf,
                                    uint64_t vcpu_id,
-                                   x86_registers_t *regs);
+                                   const x86_registers_t *regs);
 
 /* Caller must free the returned string */
 char *drakvuf_get_process_name(drakvuf_t drakvuf,
                                addr_t eprocess_base);
 char *drakvuf_get_current_process_name(drakvuf_t drakvuf,
                                        uint64_t vcpu_id,
-                                       x86_registers_t *regs);
+                                       const x86_registers_t *regs);
 
-
-bool drakvuf_get_current_thread_id( drakvuf_t drakvuf, 
-                                    uint64_t vcpu_id, 
-                                    x86_registers_t *regs,
-                                    uint32_t *thread_id );
+bool drakvuf_get_current_thread_id(drakvuf_t drakvuf,
+                                    uint64_t vcpu_id,
+                                    const x86_registers_t *regs,
+                                    uint32_t *thread_id);
 
 // Microsoft PreviousMode KTHREAD explanation:
 // https://msdn.microsoft.com/en-us/library/windows/hardware/ff559860(v=vs.85).aspx
-bool drakvuf_get_current_thread_previous_mode( drakvuf_t drakvuf, 
-                                               drakvuf_trap_info_t *info, 
-                                               privilege_mode_t *previous_mode );
+bool drakvuf_get_current_thread_previous_mode(drakvuf_t drakvuf,
+                                              uint64_t vcpu_id, const x86_registers_t *regs,
+                                              privilege_mode_t *previous_mode);
 
-bool drakvuf_get_thread_previous_mode( drakvuf_t drakvuf, 
-                                       addr_t kthread, 
-                                       privilege_mode_t *previous_mode );
+bool drakvuf_get_thread_previous_mode(drakvuf_t drakvuf,
+                                      addr_t kthread,
+                                      privilege_mode_t *previous_mode);
 
-bool drakvuf_is_ethread( drakvuf_t drakvuf, 
-                         drakvuf_trap_info_t *info, 
-                         addr_t ethread_addr );
+bool drakvuf_is_ethread(drakvuf_t drakvuf,
+                        addr_t dtb,
+                        addr_t ethread_addr);
 
-bool drakvuf_is_eprocess( drakvuf_t drakvuf, 
-                          drakvuf_trap_info_t *info, 
-                          addr_t eprocess_addr );
+bool drakvuf_is_eprocess(drakvuf_t drakvuf,
+                         addr_t dtb,
+                         addr_t eprocess_addr);
+
+bool drakvuf_find_eprocess(drakvuf_t drakvuf,
+                           vmi_pid_t find_pid,
+                           const char *find_procname,
+                           addr_t *eprocess_addr);
+
+bool drakvuf_get_module_list(drakvuf_t drakvuf,
+                             addr_t eprocess_base,
+                             addr_t *module_list);
 
 // ObReferenceObjectByHandle
-bool drakvuf_obj_ref_by_handle( drakvuf_t drakvuf, 
-                                drakvuf_trap_info_t *info, 
-                                addr_t current_eprocess,
-                                addr_t handle, 
-                                object_manager_object_t obj_type_arg, 
-                                addr_t *obj_body_addr );
+bool drakvuf_obj_ref_by_handle(drakvuf_t drakvuf,
+                               drakvuf_trap_info_t *info,
+                               addr_t current_eprocess,
+                               addr_t handle,
+                               object_manager_object_t obj_type_arg,
+                               addr_t *obj_body_addr);
 
 #pragma GCC visibility pop
 
